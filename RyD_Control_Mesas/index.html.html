@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recepción Restaurante V4</title>
+<style>
+*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{margin:0;padding:15px;background:#f4f4f4}
+.topbar{background:white;border-radius:10px;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);margin-bottom:15px}
+#nombreRestaurante{text-align:center;margin:0 0 15px 0}
+.top-buttons{display:flex;gap:10px;margin-bottom:10px}
+.btn{padding:6px 12px;cursor:pointer;border:1px solid #ccc;background:white;border-radius:6px}
+.btn:hover{background:#f0f0f0}
+.panel-desplegable{display:none;margin-top:10px;padding:10px;border-top:1px solid #ddd}
+.panel-desplegable input{width:100%;padding:8px;margin-bottom:8px}
+.stats{font-size:14px;color:#444}
+.main{display:grid;grid-template-columns:30% 70%;gap:15px}
+.panel{background:white;border-radius:10px;padding:15px;box-shadow:0 2px 5px rgba(0,0,0,.1)}
+h3{margin-top:0}
+.comensal{background:#e3f2fd;border:1px solid #90caf9;padding:10px;border-radius:8px;margin-bottom:8px;cursor:grab}
+.tiempo-espera,.tiempo-mesa{margin-top:4px;font-size:11px;color:#666}
+.mesas{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.mesa{
+    border:2px solid #4caf50;
+    border-radius:8px;
+    padding:6px;
+    background:#e8f5e9;
+    min-height:90px;
+    font-size:13px;
+}
+.mesa.ocupada{
+    border-color:#2196f3;
+    background:#e3f2fd;
+}
+
+.mesa.exceso{
+    border-color:orange;
+    background:#fff3e0;
+}
+.mesa.ocupada{border-color:#2196f3}
+.mesa.exceso{border-color:orange}
+.mesa-titulo{font-weight:bold;margin-bottom:5px}
+.mesa-botones{margin-top:8px}
+.mini-btn{padding:2px 5px;font-size:11px;cursor:pointer}
+.alerta{color:orange;font-weight:bold;margin-top:6px}
+.item-mesa-admin{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.item-mesa-admin span{flex:1}
+@media(max-width:800px){.main{grid-template-columns:1fr}}
+#creditos{
+    position:fixed;
+    bottom:8px;
+    right:10px;
+    font-size:10px;
+    color:#777;
+    font-style:italic;
+    opacity:0.9;
+    user-select:none;
+}
+/* Splash Screen */
+
+#splash {
+
+  position: fixed;
+
+  top: 0;
+
+  left: 0;
+
+  width: 100%;
+
+  height: 100%;
+
+  background: #0f172a;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+
+  align-items: center;
+
+  z-index: 9999;
+
+  color: white;
+
+}
+
+#splash h1 {
+
+  margin: 10px 0;
+
+  font-size: 48px;
+
+}
+
+#splash h2 {
+
+  margin: 0;
+
+  font-size: 24px;
+
+  font-weight: normal;
+
+}
+
+#splash p {
+
+  margin-top: 25px;
+
+  color: #cbd5e1;
+
+}
+
+#splash.ocultar {
+
+  opacity: 0;
+
+  visibility: hidden;
+
+  transition: opacity .8s ease;
+
+}
+
+</style>
+</head>
+<link rel="manifest" href="manifest.json">
+
+<meta name="theme-color" content="#0f172a">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+<meta name="apple-mobile-web-app-title" content="RyD Mesas">
+<body>
+<div id="splash">
+
+  <img
+      src="./assets/icono-192.png"
+    width="120"
+    alt="RyD">
+
+  <h1>RyD</h1>
+
+  <h2>Control de Mesas</h2>
+
+  <p>Cargando...</p>
+
+</div>
+
+<div class="topbar">
+<h1 id="nombreRestaurante">
+</h1>
+
+<div class="top-buttons">
+<button class="btn" onclick="toggleCliente()">+ Cliente</button>
+
+<button class="btn" onclick="toggleMesas()">⚙ Mesas</button>
+
+<button class="btn" onclick="mostrarReporte()">
+📊 Reporte
+</button>
+
+<button class="btn" onclick="descargarCSV()">
+⬇ CSV
+</button>
+</div>
+
+<div id="panelCliente" class="panel-desplegable">
+<h4>Nuevo Cliente</h4>
+<input id="nombreCliente" placeholder="Nombre">
+<input id="personasCliente" type="number" placeholder="Personas">
+<button class="btn" onclick="agregarCliente()">Guardar</button>
+</div>
+
+<div id="panelMesas" class="panel-desplegable">
+<h4>Administrar Mesas</h4>
+<div id="listaMesasAdmin"></div>
+
+<input id="nombreMesa" placeholder="Nombre mesa">
+<input id="capacidadMesa" type="number" placeholder="Capacidad">
+<button class="btn" onclick="agregarMesa()">Agregar Mesa</button>
+
+
+<div id="estadisticas" class="stats"></div>
+</div>
+
+<div class="main">
+<div class="panel">
+<h3>En Espera</h3>
+<div id="listaEspera"></div>
+</div>
+
+<div class="panel">
+<h3>Mesas</h3>
+<div id="contenedorMesas" class="mesas"></div>
+</div>
+</div>
+
+<script>
+let contadorClientes=0;
+let mesas=JSON.parse(localStorage.getItem("mesas_v4"))||[];
+let historial =
+JSON.parse(
+    localStorage.getItem("historial_v5")
+) || [];
+
+function guardarMesas(){localStorage.setItem("mesas_v4",JSON.stringify(mesas));}
+function toggleCliente(){let p=document.getElementById("panelCliente");p.style.display=p.style.display==="block"?"none":"block";}
+function toggleMesas(){let p=document.getElementById("panelMesas");p.style.display=p.style.display==="block"?"none":"block";}
+
+function guardarNombreRestaurante(){
+ let nombre=document.getElementById("inputRestaurante").value.trim();
+ if(!nombre)return;
+ localStorage.setItem("nombre_restaurante",nombre);
+ cargarNombreRestaurante();
+}
+function cargarNombreRestaurante(){
+ document.getElementById("nombreRestaurante").textContent=localStorage.getItem("nombre_restaurante")||"Mi Restaurante";
+}
+
+function agregarCliente(){
+ let nombre=document.getElementById("nombreCliente").value.trim();
+ let personas=parseInt(document.getElementById("personasCliente").value);
+ if(!nombre||!personas)return;
+
+ contadorClientes++;
+ let div=document.createElement("div");
+ div.className="comensal";
+ div.id="cliente_"+contadorClientes;
+ div.draggable=true;
+ div.dataset.nombre=nombre;
+ div.dataset.personas=personas;
+ div.dataset.llegada=Date.now();
+
+ div.innerHTML=`<strong>${nombre}</strong><br>${personas} personas<div class="tiempo-espera">00:00:00</div>`;
+
+ div.addEventListener("dragstart",e=>e.dataTransfer.setData("text",div.id));
+ document.getElementById("listaEspera").appendChild(div);
+
+ document.getElementById("nombreCliente").value="";
+ document.getElementById("personasCliente").value="";
+ actualizarEstadisticas();
+}
+
+function agregarMesa(){
+ let nombre=document.getElementById("nombreMesa").value.trim();
+ let capacidad=parseInt(document.getElementById("capacidadMesa").value);
+ if(!nombre||!capacidad)return;
+
+ mesas.push({nombre,capacidad,ocupada:false,cliente:null});
+ guardarMesas();
+ renderMesas();
+
+ document.getElementById("nombreMesa").value="";
+ document.getElementById("capacidadMesa").value="";
+}
+
+function editarMesa(i){
+ let nombre=prompt("Nombre",mesas[i].nombre);
+ if(nombre===null)return;
+ let capacidad=prompt("Capacidad",mesas[i].capacidad);
+ if(capacidad===null)return;
+ mesas[i].nombre=nombre;
+ mesas[i].capacidad=parseInt(capacidad);
+ guardarMesas(); renderMesas();
+}
+
+function eliminarMesa(i){
+ if(mesas[i].ocupada){alert("No puede eliminar una mesa ocupada");return;}
+ if(!confirm("Eliminar mesa?"))return;
+ mesas.splice(i,1);
+ guardarMesas(); renderMesas();
+}
+
+function liberarMesa(i){
+
+    if(!confirm("Liberar mesa?"))
+        return;
+
+    let mesa = mesas[i];
+
+    if(
+        mesa.ocupada &&
+        mesa.cliente
+    ){
+
+        let salida =
+        new Date();
+
+        let ingreso =
+        new Date(
+            mesa.cliente.llegadaMesa
+        );
+
+        let minutos =
+        Math.round(
+            (
+                salida -
+                ingreso
+            ) / 60000
+        );
+
+        historial.push({
+
+            fecha:
+            salida.toLocaleDateString(),
+
+            mesa:
+            mesa.nombre,
+
+            cliente:
+            mesa.cliente.nombre,
+
+            personas:
+            mesa.cliente.personas,
+
+            ingreso:
+            ingreso.toLocaleTimeString(),
+
+            salida:
+            salida.toLocaleTimeString(),
+
+            minutos:
+            minutos
+        });
+
+        localStorage.setItem(
+            "historial_v5",
+            JSON.stringify(historial)
+        );
+    }
+
+    mesa.ocupada=false;
+    mesa.cliente=null;
+
+    guardarMesas();
+
+    renderMesas();
+}
+
+function renderMesas(){
+ let cont=document.getElementById("contenedorMesas");
+ cont.innerHTML="";
+
+ mesas.forEach((mesa,index)=>{
+   let div=document.createElement("div");
+   div.className="mesa";
+
+   if(mesa.ocupada){
+      div.classList.add(mesa.cliente.exceso?"exceso":"ocupada");
+   }
+
+   div.innerHTML=`
+   <div class="mesa-titulo">${mesa.nombre}</div>
+   ${!mesa.ocupada ? `Capacidad: ${mesa.capacidad}` :
+   `<strong>${mesa.cliente.nombre}</strong><br>
+   ${mesa.cliente.personas} personas
+   <div class="tiempo-mesa" id="mesaTiempo_${index}">00:00:00</div>
+   ${mesa.cliente.exceso?'<div class="alerta">⚠ Excede capacidad</div>':''}`}
+   <div class="mesa-botones">
+   ${mesa.ocupada?`<button class="mini-btn" onclick="liberarMesa(${index})">Liberar</button>`:''}
+   </div>`;
+
+   div.addEventListener("dragover",e=>e.preventDefault());
+
+   div.addEventListener("drop",e=>{
+      e.preventDefault();
+      if(mesa.ocupada){alert("Mesa ocupada");return;}
+
+      let cliente=document.getElementById(e.dataTransfer.getData("text"));
+
+      mesa.ocupada=true;
+      mesa.cliente={
+        nombre:cliente.dataset.nombre,
+        personas:parseInt(cliente.dataset.personas),
+        llegadaMesa:Date.now(),
+        exceso:parseInt(cliente.dataset.personas)>mesa.capacidad
+      };
+
+      cliente.remove();
+      guardarMesas();
+      renderMesas();
+   });
+
+   cont.appendChild(div);
+ });
+
+ renderAdminMesas();
+ actualizarEstadisticas();
+}
+
+function renderAdminMesas(){
+ let div=document.getElementById("listaMesasAdmin");
+ div.innerHTML="";
+ mesas.forEach((mesa,index)=>{
+   let fila=document.createElement("div");
+   fila.className="item-mesa-admin";
+   fila.innerHTML=`<span>${mesa.nombre} (${mesa.capacidad})</span>
+   <button class="mini-btn" onclick="editarMesa(${index})">✏</button>
+   <button class="mini-btn" onclick="eliminarMesa(${index})">🗑</button>`;
+   div.appendChild(fila);
+ });
+}
+
+function formatoTiempo(seg){
+ let h=Math.floor(seg/3600);
+ let m=Math.floor((seg%3600)/60);
+ let s=seg%60;
+ return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+}
+
+function actualizarTiempos(){
+ document.querySelectorAll(".comensal").forEach(c=>{
+   let seg=Math.floor((Date.now()-parseInt(c.dataset.llegada))/1000);
+   let reloj=c.querySelector(".tiempo-espera");
+   if(reloj) reloj.textContent=formatoTiempo(seg);
+ });
+
+ mesas.forEach((mesa,index)=>{
+   if(mesa.ocupada && mesa.cliente && mesa.cliente.llegadaMesa){
+      let seg=Math.floor((Date.now()-mesa.cliente.llegadaMesa)/1000);
+      let reloj=document.getElementById("mesaTiempo_"+index);
+      if(reloj) reloj.textContent=formatoTiempo(seg);
+   }
+ });
+}
+
+function actualizarEstadisticas(){
+ let espera=document.querySelectorAll(".comensal").length;
+ let libres=mesas.filter(m=>!m.ocupada).length;
+ let ocupadas=mesas.filter(m=>m.ocupada).length;
+ document.getElementById("estadisticas").innerHTML=`Espera: ${espera} | Libres: ${libres} | Ocupadas: ${ocupadas}`;
+}
+function mostrarReporte(){
+
+    if(historial.length===0){
+
+        alert(
+            "No hay registros aún"
+        );
+
+        return;
+    }
+
+    let totalPersonas = 0;
+    let totalMinutos = 0;
+
+    historial.forEach(r=>{
+
+        totalPersonas += r.personas;
+
+        totalMinutos += r.minutos;
+    });
+
+    let promedio =
+    Math.round(
+        totalMinutos /
+        historial.length
+    );
+
+    let texto =
+`
+REPORTE DEL DÍA
+
+Mesas atendidas:
+${historial.length}
+
+Personas atendidas:
+${totalPersonas}
+
+Tiempo promedio:
+${promedio} minutos
+`;
+
+    alert(texto);
+}
+function descargarCSV(){
+
+    if(historial.length===0){
+
+        alert(
+            "No hay registros"
+        );
+
+        return;
+    }
+
+let csv =
+
+"Fecha,Mesa,Cliente,Personas,Ingreso,Salida,Minutos\n";
+
+historial.forEach(r=>{
+
+    csv +=
+`${r.fecha},${r.mesa},${r.cliente},${r.personas},${r.ingreso},${r.salida},${r.minutos}\n`;
+
+});
+
+let blob =
+new Blob(
+    ["\uFEFF" + csv],
+    {
+        type:"text/csv;charset=utf-8;"
+    }
+);
+
+    let link =
+    document.createElement("a");
+
+    link.href =
+    URL.createObjectURL(blob);
+
+    link.download =
+    "Reporte.csv";
+
+    link.click();
+}
+
+cargarNombreRestaurante();
+renderMesas();
+setInterval(actualizarTiempos,1000);
+</script>
+
+<div id="creditos">
+    Creado por: Hoffmann V. Ricardo · 646 207 88 99
+</div>
+<script>
+
+if ('serviceWorker' in navigator) {
+
+  window.addEventListener('load', () => {
+
+    navigator.serviceWorker
+      .register('./service-worker.js')
+
+      .then(() => {
+
+        console.log('Service Worker registrado');
+
+      })
+
+      .catch(error => {
+
+        console.log('Error:', error);
+
+      });
+
+  });
+
+}
+window.addEventListener('load', () => {
+
+  setTimeout(() => {
+
+    document
+      .getElementById('splash')
+      .classList.add('ocultar');
+
+  }, 4000);
+
+});
+
+</script>
+</body>
+
+</html>
