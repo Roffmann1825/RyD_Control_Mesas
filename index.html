@@ -164,10 +164,13 @@ h3{margin-top:0}
 </button>
 
 <button class="btn" onclick="descargarCSV()">
+<button class="btn" onclick="nuevoDia()">
+🗓️ Nuevo día
+</button>
 ⬇ CSV
 </button>
 </div>
-
+<div id="contadorPersonas" class="stats"></div>
 <div id="panelCliente" class="panel-desplegable">
 <h4>Nuevo Cliente</h4>
 <input id="nombreCliente" placeholder="Nombre">
@@ -429,21 +432,45 @@ function actualizarTiempos(){
 }
 
 function actualizarEstadisticas(){
+
  let espera=document.querySelectorAll(".comensal").length;
+
  let libres=mesas.filter(m=>!m.ocupada).length;
+
  let ocupadas=mesas.filter(m=>m.ocupada).length;
- document.getElementById("estadisticas").innerHTML=`Espera: ${espera} | Libres: ${libres} | Ocupadas: ${ocupadas}`;
+
+ document.getElementById("estadisticas").innerHTML=
+ `Espera: ${espera} | Libres: ${libres} | Ocupadas: ${ocupadas}`;
+
+ let personasAtendiendo = 0;
+
+ let personasEspera = 0;
+
+ mesas.forEach(mesa=>{
+
+   if(mesa.ocupada && mesa.cliente){
+
+      personasAtendiendo += mesa.cliente.personas;
+
+   }
+
+ });
+
+ document.querySelectorAll(".comensal").forEach(cliente=>{
+
+   personasEspera += parseInt(cliente.dataset.personas);
+
+ });
+
+ document.getElementById("contadorPersonas").innerHTML=
+
+ `👥 Atendiendo: <strong>${personasAtendiendo}</strong>
+
+ &nbsp;&nbsp; | &nbsp;&nbsp;
+
+ ⏳ En espera: <strong>${personasEspera}</strong>`;
+
 }
-function mostrarReporte(){
-
-    if(historial.length===0){
-
-        alert(
-            "No hay registros aún"
-        );
-
-        return;
-    }
 
     let totalPersonas = 0;
     let totalMinutos = 0;
@@ -517,6 +544,38 @@ new Blob(
     "Reporte.csv";
 
     link.click();
+}
+
+function nuevoDia(){
+
+ if(!confirm(
+
+   "¿Iniciar una nueva jornada?\n\nSe eliminarán los registros del día actual."
+
+ )) return;
+
+ historial = [];
+
+ localStorage.removeItem("historial_v5");
+
+ document.getElementById("listaEspera").innerHTML = "";
+
+ mesas.forEach(mesa=>{
+
+   mesa.ocupada = false;
+
+   mesa.cliente = null;
+
+ });
+
+ guardarMesas();
+
+ renderMesas();
+
+ actualizarEstadisticas();
+
+ alert("✅ Nueva jornada iniciada.");
+
 }
 
 cargarNombreRestaurante();
